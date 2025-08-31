@@ -1,0 +1,75 @@
+{
+    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "sql_connection": {
+            "type": "object"
+        },
+        "email_recipient": {
+            "type": "string",
+            "defaultValue": "admin@example.com"
+        },
+        "threshold_value": {
+            "type": "int",
+            "defaultValue": 1000
+        }
+    },
+    "triggers": {
+        "Recurrence": {
+            "type": "Recurrence",
+            "recurrence": {
+                "frequency": "Minute",
+                "interval": 5
+            }
+        }
+    },
+    "actions": {
+        "Get_High_Value_Transactions": {
+            "type": "ApiConnection",
+            "inputs": {
+                "host": {
+                    "connection": "@parameters('$connections')['sql_connection']['connectionId']"
+                },
+                "method": "get",
+                "path": "/queries",
+                "queries": {
+                    "query": "EXEC GetHighValueTransactions @Threshold=@parameters('threshold_value')"
+                }
+            },
+            "runAfter": {}
+        },
+        "Condition": {
+            "type": "If",
+            "expression": "@greater(length(body('Get_High_Value_Transactions')), 0)",
+            "actions": {
+                "Send_Email": {
+                    "type": "ApiConnection",
+                    "inputs": {
+                        "host": {
+                            "connection": "@parameters('$connections')['office365']['connectionId']"
+                        },
+                        "method": "post",
+                        "path": "/sendMail",
+                        "body": {
+                            "message": {
+                                "subject": "High Value Transaction Alert",
+                                "body": {
+                                    "contentType": "HTML",
+                                    "content": "A high-value transaction has been detected."
+                                },
+                                "toRecipients": [
+                                    {
+                                        "emailAddress": {
+                                            "address": "@parameters('email_recipient')"
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "outputs": {}
+}
